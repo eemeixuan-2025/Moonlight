@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import requests
+import os
 from pathlib import Path
 
 try:
@@ -28,7 +30,40 @@ EDUCATION_MAP = {"No Formal Education": 0, "High School": 1, "Diploma": 2, "Asso
 
 @st.cache_resource
 def load_resources():
-    model_obj = joblib.load(ROOT / 'moonlight_model.pkl')
+    # Allow model to be provided via a public URL to avoid large Git LFS downloads during deploy.
+    model_path = ROOT / 'moonlight_model.pkl'
+    # Priority: Streamlit secrets -> environment variable
+    model_url = None
+    try:
+        model_url = st.secrets.get('MODEL_URL') if hasattr(st, 'secrets') else None
+    except Exception:
+        model_url = None
+    if not model_url:
+        model_url = os.environ.get('MODEL_URL')
+
+    if model_url and not model_path.exists():
+        # Download model in streaming mode to avoid memory spikes
+        tmp_path = model_path.with_suffix('.pkl.download')
+        try:
+            with requests.get(model_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(tmp_path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+            tmp_path.replace(model_path)
+        except Exception as e:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except Exception:
+                    pass
+            raise RuntimeError(f"Failed to download model from MODEL_URL: {e}")
+
+    if not model_path.exists():
+        raise FileNotFoundError(f"Missing model file: {model_path}. Provide MODEL_URL in Streamlit secrets or env vars.")
+
+    model_obj = joblib.load(model_path)
     pipeline_obj = joblib.load(ROOT / 'pipeline.pkl')
     return model_obj, pipeline_obj
 
