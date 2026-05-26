@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-ROOT = Path('.')
+ROOT = Path(__file__).resolve().parent
 FIG_DIR = ROOT / 'assets' / 'figs'
 
 INCOME_MAP = {"Low": 0, "Middle": 1, "Upper-Middle": 2, "High": 3, "Very High": 4, "Very Low": 0, "Lower-Middle": 1}
@@ -325,7 +325,7 @@ try:
     model, pipeline = load_resources()
     feature_order = get_expected_feature_names(pipeline)
 except Exception as e:
-    load_error = str(e)
+    load_error = f"{e} | checked: {ROOT / 'moonlight_model.pkl'} and {ROOT / 'pipeline.pkl'}"
 
 if not feature_order:
     feature_order = [
